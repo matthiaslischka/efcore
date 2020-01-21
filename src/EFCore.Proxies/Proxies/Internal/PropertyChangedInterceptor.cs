@@ -22,7 +22,6 @@ namespace Microsoft.EntityFrameworkCore.Proxies.Internal
         private readonly IEntityType _entityType;
         private readonly bool _checkEquality;
         private PropertyChangedEventHandler _handler;
-        private Type _proxyType;
 
         /// <summary>
         ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -68,14 +67,14 @@ namespace Microsoft.EntityFrameworkCore.Proxies.Internal
                 var property = _entityType.FindProperty(propertyName);
                 if (property != null)
                 {
-                    HandleChanged(invocation, propertyName);
+                    HandleChanged(invocation, property);
                 }
                 else
                 {
                     var navigation = _entityType.FindNavigation(propertyName);
                     if (navigation != null)
                     {
-                        HandleChanged(invocation, propertyName);
+                        HandleChanged(invocation, navigation);
                     }
                     else
                     {
@@ -89,29 +88,20 @@ namespace Microsoft.EntityFrameworkCore.Proxies.Internal
             }
         }
 
-        private void HandleChanged(IInvocation invocation, string propertyName)
+        private void HandleChanged(IInvocation invocation, IPropertyBase property)
         {
             var newValue = invocation.Arguments[^1];
 
             if (_checkEquality)
             {
-                if (_proxyType == null)
+                var oldValue = property.GetGetter().GetClrValue(invocation.Proxy);
+
+                invocation.Proceed();
+
+                if ((oldValue is null ^ newValue is null)
+                    || oldValue?.Equals(newValue) == false)
                 {
-                    _proxyType = invocation.Proxy.GetType();
-                }
-
-                var property = _proxyType.GetProperty(propertyName);
-                if (property != null)
-                {
-                    var oldValue = property.GetValue(invocation.Proxy);
-
-                    invocation.Proceed();
-
-                    if ((oldValue is null ^ newValue is null)
-                        || oldValue?.Equals(newValue) == false)
-                    {
-                        NotifyPropertyChanged(propertyName, invocation.Proxy);
-                    }
+                    NotifyPropertyChanged(property.Name, invocation.Proxy);
                 }
                 else
                 {
@@ -121,14 +111,11 @@ namespace Microsoft.EntityFrameworkCore.Proxies.Internal
             else
             {
                 invocation.Proceed();
-                NotifyPropertyChanged(propertyName, invocation.Proxy);
+                NotifyPropertyChanged(property.Name, invocation.Proxy);
             }
         }
 
         private void NotifyPropertyChanged(string propertyName, object proxy)
-        {
-            var args = new PropertyChangedEventArgs(propertyName);
-            _handler?.Invoke(proxy, args);
-        }
+            => _handler?.Invoke(proxy, new PropertyChangedEventArgs(propertyName));
     }
 }

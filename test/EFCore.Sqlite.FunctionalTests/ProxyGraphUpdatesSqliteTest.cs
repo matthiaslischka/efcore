@@ -36,6 +36,9 @@ namespace Microsoft.EntityFrameworkCore
             {
             }
 
+            protected override bool DoesLazyLoading => true;
+            protected override bool DoesChangeTracking => false;
+
             public class ProxyGraphUpdatesWithLazyLoadingSqliteFixture : ProxyGraphUpdatesSqliteFixtureBase
             {
                 protected override string StoreName { get; } = "ProxyGraphLazyLoadingUpdatesTest";
