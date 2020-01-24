@@ -100,11 +100,18 @@ namespace Microsoft.EntityFrameworkCore.Cosmos.Query.Internal
         {
             Check.NotNull(memberExpression, nameof(memberExpression));
 
-            return TryBindMember(memberExpression.Expression, MemberIdentity.Create(memberExpression.Member), out var result)
+            var boundResult = TryBindMember(memberExpression.Expression, MemberIdentity.Create(memberExpression.Member), out var result)
                 ? result
                 : TranslationFailed(memberExpression.Expression, Visit(memberExpression.Expression), out var sqlInnerExpression)
                     ? null
                     : _memberTranslatorProvider.Translate(sqlInnerExpression, memberExpression.Member, memberExpression.Type);
+
+            return boundResult != null
+                && boundResult.Type == typeof(bool)
+                && boundResult is KeyAccessExpression keyAccessExpression
+                && keyAccessExpression.TypeMapping.Converter != null
+                ? _sqlExpressionFactory.Equal(keyAccessExpression, _sqlExpressionFactory.Constant(true, keyAccessExpression.TypeMapping))
+                : boundResult;
         }
 
         private bool TryBindMember(Expression source, MemberIdentity member, out Expression expression)

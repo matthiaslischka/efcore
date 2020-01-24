@@ -247,11 +247,18 @@ namespace Microsoft.EntityFrameworkCore.Query
         {
             Check.NotNull(memberExpression, nameof(memberExpression));
 
-            return TryBindMember(memberExpression.Expression, MemberIdentity.Create(memberExpression.Member), out var result)
+            var boundResult = TryBindMember(memberExpression.Expression, MemberIdentity.Create(memberExpression.Member), out var result)
                 ? result
                 : TranslationFailed(memberExpression.Expression, base.Visit(memberExpression.Expression), out var sqlInnerExpression)
                     ? null
                     : Dependencies.MemberTranslatorProvider.Translate(sqlInnerExpression, memberExpression.Member, memberExpression.Type);
+
+            return boundResult != null
+                && boundResult.Type == typeof(bool)
+                && boundResult is ColumnExpression columnExpression
+                && columnExpression.TypeMapping.Converter != null
+                ? SqlExpressionFactory.Equal(columnExpression, SqlExpressionFactory.Constant(true, columnExpression.TypeMapping))
+                : boundResult;
         }
 
         private bool TryBindMember(Expression source, MemberIdentity member, out Expression expression)
